@@ -1,0 +1,187 @@
+## Assignment7  
+
+```{r}
+library(tidyverse)
+library(dplyr)
+library(keras)
+library(magrittr)
+```
+
+### Question1
+```{r}
+newfunc <- function(mu){
+  x = c(1.57, 1.25, 2.80, 0.43)
+  w = c(2, 2, 1, 1)
+  return(sum( w * (x - mu) ^ 2 ))
+}
+optimize(newfunc, lower = -10, upper = 10)
+```
+
+### Question2
+```{r}
+dat <- read.table("/cloud/project/data/shhs1 (2).txt", sep="\t", header = TRUE)
+dat <- na.omit(dat)
+regmodel <- lm (log(rdi4p + 1) ~ waist + age_s1 + gender + bmi_s1, data=dat)
+summary(regmodel)
+coefficients(regmodel)
+```
+
+### Question3
+```{r}
+testdata <- data.frame( waist = c(as.numeric(100)), 
+                        age_s1 = c(as.numeric(60)),
+                        gender = c(as.numeric(1)),
+                        bmi_s1 = c(as.numeric(30))
+                        )
+predict(regmodel, testdata)
+```
+
+### Question4
+When other variables are constant, we estimate an expected 0.007562187 log(rdi4p+1) increase for every waist circumstance increase.   
+When other variables are constant, we estimate an expected 0.021287821 log(rdi4p+1) increase for every age increase.   
+When other variables are constant, we estimate an expected 0.509541298 log(rdi4p+1) increase if gender is labeled 1.   
+When other variables are constant, we estimate an expected 0.060182399 log(rdi4p+1) increase for every BMI increase.   
+
+### Question5
+```{r}
+g1 <- dat %>% filter(rdi4p < 7) %>% mutate(rdi4pcat = 1)
+g2 <- dat %>% filter(rdi4p >= 7 & rdi4p < 15) %>% mutate(rdi4pcat = 2)
+g3 <- dat %>% filter(rdi4p >= 15 & rdi4p < 30) %>% mutate(rdi4pcat = 3)
+g4 <- dat %>% filter(rdi4p >= 30) %>% mutate(rdi4pcat = 4)
+rdi4pnew <- rbind(g1, g2, g3, g4)
+rdi4pnew
+rdi4pnew$rdi4pcat <- as.factor(rdi4pnew$rdi4pcat)
+logreg <- glm(HTNDerv_s1 ~ rdi4pcat, data = rdi4pnew, family = binomial(link='logit'))
+summary(logreg)
+```
+
+### Question6
+```{r}
+newlog <- glm(HTNDerv_s1 ~ rdi4pcat + age_s1 + gender + bmi_s1 + waist + smokstat_s1, data = rdi4pnew, family = binomial(link='logit'))
+summary(newlog)
+coefficients(newlog)
+```
+Through the p-value, we can know that gender, waist and smokestat are irrelevant to HTNDerV.  
+In this question, odds = P(HTNDerv=1)/P(HTNDerv=0).   
+When other variables are constant, log(odds) will increase 0.053187006 for every age increases.   
+When other variables are constant, log(odds) will increase 0.193490624 if the rdi4p is in catagory 2.  
+When other variables are constant, log(odds) will increase 0.084061977 if the rdi4p is in catagory 3.  
+When other variables are constant, log(odds) will increase 0.315867418 if the rdi4p is in catagory 4.  
+When other variables are constant, log(odds) will increase 0.040841584 for every BMI increases.  
+
+### Question7
+```{r}
+NNDat = dat %>% select(rdi4p, waist, COPD15, HTNDerv_s1, gender, age_s1, bmi_s1) 
+y = log(NNDat$rdi4p + 1)
+x = NNDat %>% select(-rdi4p) %>% as.matrix()
+trainIdx = sample(c(TRUE, FALSE), length(y), replace = TRUE, prob = c(.7, .3))
+ytrain = y[trainIdx]
+xtrain = x[trainIdx, ] %>% scale()
+mns = attr(xtrain, "scaled:center")
+sds = attr(xtrain, "scaled:scale")
+xtest = x[!trainIdx, ] %>% scale(center = mns, scale = sds)
+ytest = y[!trainIdx]
+NNmodel = keras_model_sequential() %>%
+ layer_dense(units = 4, activation = "relu",
+             use_bias = TRUE,
+             input_shape = dim(xtrain)[2]) %>%
+ layer_dense(units = 2, activation = "relu") %>%
+ layer_dense(units = 1)
+NNmodel %>% compile(
+ loss = "mse",
+ optimizer = optimizer_rmsprop(),
+ metrics = list("mean_absolute_error")
+)
+history = NNmodel %>% fit(
+ xtrain,
+ ytrain,
+ epochs = 20,
+ validation_split = 0.2,
+ verbose = 1,
+)
+yPred = NNmodel %>% predict(xtest)
+plot(yPred[,1], ytest)
+cor(yPred[,1], ytest)
+```
+
+### Question8
+```{r}
+NN2Dat = dat %>%
+ select(rdi4p, waist, COPD15, HTNDerv_s1, gender, age_s1, bmi_s1)
+y = NN2Dat$HTNDerv_s1
+y = cbind(y, 1 - y)
+x = NN2Dat %>% select(-HTNDerv_s1) %>% as.matrix()
+trainIdx_1 = sample(c(TRUE, FALSE), dim(x)[1], replace = TRUE, prob = c(.7, .3))
+ytrain_1 = y[trainIdx_1, ]
+xtrain_1 = x[trainIdx_1, ] %>% scale()
+mns = attr(xtrain, "scaled:center")
+sds = attr(xtrain, "scaled:scale")
+xtest_1 = x[!trainIdx_1, ] %>% scale(center = mns, scale = sds)
+ytest_1 = y[!trainIdx_1, ]
+NN2model = keras_model_sequential() %>%
+ layer_dense(units = 2^8, activation = "relu",
+             use_bias = TRUE,
+             input_shape = dim(xtrain)[2]) %>%
+ layer_dropout(rate = .8) %>%
+ layer_dense(units = 2 ^ 4, activation = "relu") %>%
+ layer_dropout(rate = .8) %>%
+ layer_dense(units = 2, activation = "softmax")
+NN2model %>% compile(
+ loss = "categorical_crossentropy",
+ optimizer = optimizer_rmsprop(),
+ metrics = list("accuracy")
+)
+history = NN2model %>% fit(
+ xtrain_1,
+ ytrain_1,
+ epochs = 30,
+ validation_split = 0.2,
+ verbose = 1,
+)
+yPred_1 = 1 - (NN2model %>% predict_classes(xtest_1))
+ptab = table(yPred_1, ytest_1[,1])
+ptab
+sum(diag(ptab)) / sum(ptab)
+```
+
+### Question9
+```{r}
+library(keras)
+mnist <- dataset_mnist()
+x_train <- mnist$train$x
+y_train <- mnist$train$y
+x_test <- mnist$test$x
+y_test <- mnist$test$y
+x_train <- array_reshape(x_train, c(nrow(x_train), 784))
+x_test <- array_reshape(x_test, c(nrow(x_test), 784))
+x_train <- x_train / 255
+x_test <- x_test / 255
+y_train <- to_categorical(y_train, 10)
+y_test <- to_categorical(y_test, 10)
+model <- keras_model_sequential() 
+model %>% 
+  layer_dense(units = 256, activation = 'relu', input_shape = c(784)) %>% 
+  layer_dropout(rate = 0.4) %>% 
+  layer_dense(units = 128, activation = 'relu') %>%
+  layer_dropout(rate = 0.3) %>%
+  layer_dense(units = 10, activation = 'softmax')
+summary(model)
+model %>% compile(
+  loss = 'categorical_crossentropy',
+  optimizer = optimizer_rmsprop(),
+  metrics = c('accuracy')
+)
+history <- model %>% fit(
+  x_train, y_train, 
+  epochs = 30, batch_size = 128, 
+  validation_split = 0.2
+)
+model %>% evaluate(x_test, y_test)
+model %>% predict_classes(x_test)
+```
+
+
+
+
+
+
