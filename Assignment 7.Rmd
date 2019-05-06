@@ -48,7 +48,7 @@ g2 <- dat %>% filter(rdi4p >= 7 & rdi4p < 15) %>% mutate(rdi4pcat = 2)
 g3 <- dat %>% filter(rdi4p >= 15 & rdi4p < 30) %>% mutate(rdi4pcat = 3)
 g4 <- dat %>% filter(rdi4p >= 30) %>% mutate(rdi4pcat = 4)
 rdi4pnew <- rbind(g1, g2, g3, g4)
-rdi4pnew
+head (rdi4pnew)
 rdi4pnew$rdi4pcat <- as.factor(rdi4pnew$rdi4pcat)
 logreg <- glm(HTNDerv_s1 ~ rdi4pcat, data = rdi4pnew, family = binomial(link='logit'))
 summary(logreg)
