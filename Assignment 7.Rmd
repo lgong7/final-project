@@ -1,7 +1,6 @@
 ## Assignment7  
 
 ```{r}
-library(tidyverse)
 library(dplyr)
 library(keras)
 library(magrittr)
